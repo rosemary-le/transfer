@@ -1,0 +1,205 @@
+<html>
+
+<body>
+
+<h2>Getting Started</h2>
+<p>
+We are going to look at how temporal difference models work in two examples. The base
+of the code that we will work from can be downloaded <a href="reinforcement_learning.tgz">
+here</a>. Download the file, locate it in a terminal and extract the contents with the 
+command:
+<pre class="code">
+tar xvfz reinforcement_learning.tgz
+</pre>
+</p>
+
+<h2>TD(0)</h2>
+<p>
+For the first example, we are going to reproduce and play around with Figure 3 from
+Schultz, Dayan, & Montague (1997). Recall that this model learns to associate a 
+conditioned stimulus with a later reward. To speed things up, the basic code that runs
+the model is provided for you in the folder <code>reinforcement_learning/td</code> with the
+name <code>td0.m</code>. We are going to step through this code so that you understand how 
+it works. Then, you are going to tweak it. So look at <code>td0.m</code> as you read the
+next few paragraphs.
+</p>
+
+<p>
+We are going to model learning over 100 trials (<code>nTrials = 100;</code>),
+with 30 time steps (<code>nSteps = 30;</code>) per trial. Recall that state
+space was modeled as a tapped delay line so that states <code>x</code>
+represent the amount of time since the conditioned stimulus occurred. State space will
+be stored as a vector of size <code>nSteps x 1</code> that will take on the
+value <code>[1 0 0 ...]</code> when the stimulus occurs, the value <code>[0 1 0 ...]</code>
+at the next time step, and so forth.
+</p>
+
+<p>
+The job of the learning model is to learn weights <code>w</code> so that the
+dot product of <code>w</code> and <code>x</code> equals the expected
+reward to be earned from the current time step through the end of the trial. The weights
+are initialized with <code>w = zeros(nSteps,1);</code>.
+</p>
+
+<p>
+The final two parameters initialized are the time discount factor <code>gamma</code> and
+the learning rate <code>alpha</code>. We are now ready to start the learning.
+</p>
+
+<p>
+Learning occurs by looping through trials and then through steps within the trial. You'll
+see the embedded <code>for</code> loops that do this. For each time step <code>x</code> is 
+set to be all zeros until the cue occurs. The cue is modeled to occur at time step 10:
+<pre class="code">
+x = zeros(nSteps,1);
+if (step >= 10)
+    x(step-9) = 1;
+end;
+</pre>
+The estimated value (<code>V</code>) at any time step is the dot product of <code>x</code>
+and <code>w</code>:
+<pre class="code">
+V(trial,step) = dot(x,w);
+</pre>
+The reward is modeled to occur at time step 20:
+<pre class="code">
+r(trial,step) = (step==20);
+</pre>
+</p>
+
+<p>
+Remember that TD(0) works by comparing the immediate value estimate <code>V(t)</code>
+with the immediate reward earned, <code>r(t)</code>, and the next value estimate <code>
+V(t+1)</code>. To perform this update, we need to know <code>V(t+1)</code>, which we
+can only know one time step after seeing <code>V(t)</code>. Learning can therefore only
+occur after the first time step in the trial and must be done at time <code>t+1</code>
+for the <code>x</code> and <code>w</code> seen at the previous time step. The code
+<pre class="code">
+if (step > 1)
+    delta(trial,step-1) = r(trial,step-1)+gamma*V(trial,step)-V(trial,step-1);
+	dw = alpha * delta(trial,step-1) * xlast;
+	w = w + dw;
+end;
+</pre>
+does this. The final bit of the program plots <code>V</code> and the prediction error
+across time and trials. Run <code>td0</code> in Matlab, and you should see a familiar
+looking plot.
+</p>
+
+<img src="TD0.png" width="50%" height="50%" >
+
+<p>
+You are now ready to explore on your own. Try the following:
+<ol>
+<li>In the Schultz paper, reward was omitted on trial 20. Implement this.</li>
+<li>Predict the effect of reducing <code>gamma</code> from 1. Test your prediction.</li>
+<li>Make the reward stochastic so that the size of the reward varies randomly between
+<code>0.5</code> and <code>1.0</code>. How variable is the reward predicted  at time
+step 20 across trials? How variable is the reward predicted when the cue occurs? What
+happens to the variability in the prediction at the cue if learning rate is increased?</li>
+<li>Test what happens to the prediction error when reward is delivered earlier or later
+than expected.</li>
+</ol>
+</p>
+
+<h2>Tic-Tac-Toe</h2>
+<p>
+It is easy to get the sense that TD(0) is so simple that it can do little more than learn
+to predict reward only at some short time following a cue -- and even that not very well.
+The second example aims to show you that TD(0) is much more impressive than this.
+<p>
+
+<p>
+Switch to the <code>tic-tac-toe</code> folder. For this example, we are not going to step
+through the code. Trust me that the learning algorithm is exactly the same as in the 
+classical conditioning case. (If you don't trust me, then consult <code>simple_TD0.m</code>.)
+The only difference with tic-tac-toe is that the state space
+is much larger, more complicated, and the transitions between states are more variable.
+You may reasonably think that a learning algorithm that learn by bootstapping off of next
+state predictions will be hopelessly lost, but you would be wrong.
+</p>
+
+<p>
+To start TD(0) in tic-tac-toe, you have to create a global value matrix that the algorithm
+will modify. To do this enter the following in Matlab:
+<pre class="code">
+global TD0;
+TD0.V = rand(3^9, 2);
+</pre>
+The <code>3^9</code> is the number of possible states. (X, O, or nothing at each of 9
+positions. I know that there are far fewer states than this, but I was much too lazy to
+come up with anything more complicated.) The second dimension (2) allows the algorithm to
+learn separate values for being the X or O player.
+<p>
+
+<p>
+The TD algorithm chooses in the following manner. It finds all of the empty board spaces
+and check what value is has for putting its mark in each of those spaces. With probability
+1-epsilon it then puts its mark in the space with the highest value. If more than one spaces
+have equal value then it chooses randomly among the equally best options. This 1-epsilon
+choice procedure is known as epsilon-greedy. Epsilon has an important purpose: it forces
+the model to explore options to help it avoid getting stuck in OK but not optimal action
+policies. While training the model, it is good to have a small positive value of epsilon
+(something like 0.1). As the model gets better you can reduce epsilon. Start by setting
+epsilon to zero with the command:
+<pre class="code">
+TD0.e = 0;
+</pre>
+</p>
+
+<p>
+OK, now you're ready to play your newborn TD(0) algorithm. To do so, you run the command
+<code>game</code> with three arguments. The first argument tells Matlab what kind of player
+to play as player 1, the second argument is for player 2, and the third argument indicates
+whether the game board should be drawn. For you to play as player 1 against TD(0), enter
+<pre class="code">
+game(@human, @simple_TD0, 1);
+</pre>
+Click on the board to place your mark. You better be able to win. 
+</p>
+
+<p>
+Three classes of players are coded up. There is <code>human</code>, <code>simple_TD0</code>,
+and a purely random player <code>randomXO</code>. To use any player type you have to prefix
+<code>@</code> before the player type, as in the example above.
+</p>
+
+<p>
+To get a quick feel for how well TD(0) works, let's set the algorithm to train itself. 
+Begin by setting epsilon to 0.1 to facilitate learning. Then let TD play itself 10,000
+times:
+<pre class="code">
+TD0.e = 0.1;
+for i = 1:10000
+    game(@simple_TD0, @simple_TD0, 0);
+end;
+</pre>
+How good is the algorithm now?
+<pre class="code">
+TD0.e = 0.0;
+game(@human, @simple_TD0, 1);
+</pre>
+or
+<pre class="code">
+TD0.e = 0.0;
+game(@simple_TD0, @human, 1);
+</pre>
+Impressive?
+</p>
+
+<p>
+Now let's get a better idea about how things work.
+<ol>
+<li>How important is epsilon? Re-initialize the values (i.e. <code>TD0.V = rand(3^9,2);</code>)
+and train TD for 10,000 trials with epsilon=0. How easy is it to beat now?</li>
+<li>Another way to promote exploration is to make an extremely optimistic naive TD agent.
+In the case of this tic-tac-toe algorithm, <code>V</code> at any state is the estimated
+probability of winning. We can make the model optimistic by starting <code>V</code> at
+all 1's (i.e. <code>TD0.V = ones(3^9,2);</code>). Does this make for a good model after
+10,000 training games?</li>
+<li>One way that bootstrapping can go wrong is if future states are unpredictable. Nothing
+is more unpredictable than the <code>randomXO</code> algorithm (play it once to confirm). 
+How well does TD(0) train up from playing the random player?</li>
+</body>
+
+</html>
